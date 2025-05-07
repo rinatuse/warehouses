@@ -1,14 +1,14 @@
 <template>
-  <div v-if="show && selectedCell && selectedCell.product" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+  <div v-if="show && selectedProduct" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
     <div class="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
       <div class="flex justify-between items-start mb-4">
         <div>
           <h2 class="text-xl font-semibold text-gray-800">Действия с товаром</h2>
           <p class="text-gray-600">
-            {{ selectedCell.product.name }} ({{ selectedCell.product.quantity }} {{ selectedCell.product.unit }})
+            <span class="text-blue-600 font-medium">{{ selectedProduct.code }}</span> - {{ selectedProduct.name }} ({{ selectedProduct.quantity }} {{ selectedProduct.unit }})
           </p>
           <p class="text-sm text-gray-500">
-            Местоположение: {{ warehouseName }} / {{ containerName }}, Ячейка: {{ selectedCell.id }}
+            Местоположение: {{ warehouseName }} / {{ containerName }}
           </p>
         </div>
         <button
@@ -26,8 +26,8 @@
         >
           <span class="text-xl">↔️</span>
           <div>
-            <p class="font-medium">Переместить на другой склад/ячейку</p>
-            <p class="text-sm">Перемещение товара между ячейками или складами</p>
+            <p class="font-medium">Переместить на другой склад</p>
+            <p class="text-sm">Перемещение товара между контейнерами или складами</p>
           </div>
         </button>
         
@@ -63,7 +63,7 @@ const props = defineProps({
     type: Boolean,
     required: true
   },
-  selectedCell: {
+  selectedProduct: {
     type: Object,
     default: null
   },

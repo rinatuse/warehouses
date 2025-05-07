@@ -23,25 +23,56 @@
       />
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div 
-        v-for="warehouse in filteredWarehouses" 
-        :key="warehouse.id"
-        class="bg-gray-50 border border-gray-200 rounded-lg p-4 cursor-pointer hover:bg-gray-100"
-        @click="$emit('navigate', 'container', warehouse, null, null)"
-      >
-        <div class="flex items-center mb-3">
-          <span class="text-blue-600 mr-2">📦</span>
-          <h3 class="text-lg font-medium text-gray-800">{{ warehouse.name }}</h3>
-        </div>
-        <div class="text-sm text-gray-600">
-          <p>Контейнеров: {{ warehouse.containers.length }}</p>
-          <p>Всего ячеек: {{ getTotalCells(warehouse) }}</p>
-          <p>Заполнено: {{ getFilledCells(warehouse) }}</p>
-          <p v-if="searchQuery" class="mt-2 text-blue-600">
-            Найдено: {{ getFoundCells(warehouse) }} ячеек
-          </p>
-        </div>
+    <!-- Таблица со складами -->
+    <div class="overflow-auto">
+      <table class="min-w-full bg-white rounded-lg overflow-hidden">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Наименование</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Контейнеров</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Товаров всего</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Найдено</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+          <tr 
+            v-for="warehouse in filteredWarehouses" 
+            :key="warehouse.id"
+            class="hover:bg-gray-50"
+          >
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+              <div class="flex items-center">
+                <span class="text-blue-600 mr-2">📦</span>
+                <span>{{ warehouse.name }}</span>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              {{ warehouse.containers.length }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              {{ getTotalProducts(warehouse) }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              <span v-if="searchQuery" class="text-blue-600">
+                {{ getFoundProducts(warehouse) }}
+              </span>
+              <span v-else>-</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
+              <button 
+                @click="$emit('navigate', 'warehouse', warehouse)"
+                class="text-blue-600 hover:text-blue-800"
+              >
+                Просмотр →
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <div v-if="filteredWarehouses.length === 0" class="text-center py-8 text-gray-500">
+        {{ searchQuery ? "По вашему запросу ничего не найдено" : "Нет складов" }}
       </div>
     </div>
   </div>
@@ -61,25 +92,22 @@ const emit = defineEmits(['navigate', 'search', 'showOperationForm'])
 
 const searchQuery = ref('')
 
-// Вспомогательные функции для подсчета ячеек
-const getTotalCells = (warehouse) => {
-  return warehouse.containers.reduce((sum, container) => sum + container.cells.length, 0)
+// Вспомогательные функции для подсчета товаров
+const getTotalProducts = (warehouse) => {
+  return warehouse.containers.reduce((sum, container) => sum + container.products.length, 0)
 }
 
-const getFilledCells = (warehouse) => {
-  return warehouse.containers.reduce((sum, container) => 
-    sum + container.cells.filter(cell => cell.product).length, 0)
-}
-
-const getFoundCells = (warehouse) => {
+const getFoundProducts = (warehouse) => {
   if (!searchQuery.value) return 0
   
-  return warehouse.containers.reduce((sum, container) => 
-    sum + container.cells.filter(cell => 
-      cell.product && (
-        cell.product.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-        cell.product.code.includes(searchQuery.value)
-      )
-    ).length, 0)
+  return warehouse.containers.reduce((sum, container) => {
+    if (container.filteredProductCount) {
+      return sum + container.filteredProductCount
+    }
+    return sum + container.products.filter(product => 
+      product.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      product.code.includes(searchQuery.value)
+    ).length
+  }, 0)
 }
 </script>

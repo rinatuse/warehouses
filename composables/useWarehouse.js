@@ -7,11 +7,12 @@ export function useWarehouse() {
   const operations = ref(operationsHistoryData)
   const selectedWarehouse = ref(null)
   const selectedContainer = ref(null)
-  const selectedCell = ref(null)
+  const selectedProduct = ref(null) // Теперь работаем напрямую с товаром, а не с ячейкой
   const searchQuery = ref('')
   const showActionMenu = ref(false)
   const showOperationForm = ref(false)
   const operationType = ref(null)
+  const viewMode = ref('warehouses') // 'warehouses' или 'products'
   
   const operationForm = ref({
     product_code: '',
@@ -19,9 +20,7 @@ export function useWarehouse() {
     quantity: '',
     unit: '',
     source: '',
-    source_cell: '',
     destination: '',
-    destination_cell: '',
     operation_name: ''
   })
 
@@ -31,17 +30,16 @@ export function useWarehouse() {
     
     return warehouses.value.map(warehouse => {
       const filteredContainers = warehouse.containers.map(container => {
-        const filteredCells = container.cells.filter(cell => 
-          cell.product && (
-            cell.product.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-            cell.product.code.includes(searchQuery.value)
-          )
+        const filteredProducts = container.products.filter(product => 
+          product.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+          product.code.includes(searchQuery.value)
         )
         
-        if (filteredCells.length > 0) {
+        if (filteredProducts.length > 0) {
           return {
             ...container,
-            cells: filteredCells
+            products: filteredProducts,
+            filteredProductCount: filteredProducts.length
           }
         }
         
@@ -59,72 +57,10 @@ export function useWarehouse() {
     }).filter(Boolean)
   })
 
-  // Отфильтрованные контейнеры для выбранного склада
-  const filteredContainers = computed(() => {
-    if (!selectedWarehouse.value) return []
-    if (!searchQuery.value) return selectedWarehouse.value.containers
-    
-    return selectedWarehouse.value.containers.map(container => {
-      const filteredCells = container.cells.filter(cell => 
-        cell.product && (
-          cell.product.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-          cell.product.code.includes(searchQuery.value)
-        )
-      )
-      
-      if (filteredCells.length > 0) {
-        return {
-          ...container,
-          filteredCellCount: filteredCells.length
-        }
-      }
-      
-      return null
-    }).filter(Boolean)
-  })
-
-  // Отфильтрованные ячейки для выбранного контейнера
-  const filteredCells = computed(() => {
-    if (!selectedContainer.value) return []
-    if (!searchQuery.value) return selectedContainer.value.cells
-    
-    return selectedContainer.value.cells.filter(cell => 
-      cell.product && (
-        cell.product.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-        cell.product.code.includes(searchQuery.value)
-      )
-    )
-  })
-
-  // Обработчики навигации
-  function handleNavigate(level, warehouse, container, cell) {
-    if (level === 'warehouse') {
-      selectedWarehouse.value = warehouse
-      selectedContainer.value = null
-      selectedCell.value = null
-    } else if (level === 'container') {
-      selectedWarehouse.value = warehouse
-      selectedContainer.value = container
-      selectedCell.value = null
-    } else if (level === 'cell') {
-      selectedWarehouse.value = warehouse
-      selectedContainer.value = container
-      selectedCell.value = cell
-    }
-    
-    showActionMenu.value = false
-  }
-
-  // Обработчик выбора ячейки
-  function handleCellClick(cell) {
-    selectedCell.value = cell
-    showActionMenu.value = true
-  }
-
   // Обработчик закрытия меню действий
   function handleCloseActionMenu() {
     showActionMenu.value = false
-    selectedCell.value = null
+    selectedProduct.value = null
   }
 
   // Инициализация операции
@@ -133,16 +69,14 @@ export function useWarehouse() {
     showOperationForm.value = true
     showActionMenu.value = false
     
-    // Инициализация формы операции
+    // Инициализация формы операции с данными выбранного товара
     operationForm.value = {
-      product_code: selectedCell.value?.product?.code || '',
-      product_name: selectedCell.value?.product?.name || '',
-      quantity: selectedCell.value?.product?.quantity || '',
-      unit: selectedCell.value?.product?.unit || '',
+      product_code: selectedProduct.value?.code || '',
+      product_name: selectedProduct.value?.name || '',
+      quantity: selectedProduct.value?.quantity || '',
+      unit: selectedProduct.value?.unit || '',
       source: selectedWarehouse.value ? `${selectedWarehouse.value.name} / ${selectedContainer.value.name}` : '',
-      source_cell: selectedCell.value?.id || '',
       destination: '',
-      destination_cell: '',
       operation_name: type
     }
   }
@@ -175,9 +109,7 @@ export function useWarehouse() {
       quantity: '',
       unit: '',
       source: '',
-      source_cell: '',
       destination: '',
-      destination_cell: '',
       operation_name: ''
     }
   }
@@ -187,17 +119,14 @@ export function useWarehouse() {
     operations,
     selectedWarehouse,
     selectedContainer,
-    selectedCell,
+    selectedProduct, // Вместо selectedCell возвращаем selectedProduct
     searchQuery,
     showActionMenu,
     showOperationForm,
     operationType,
     operationForm,
+    viewMode,
     filteredWarehouses,
-    filteredContainers,
-    filteredCells,
-    handleNavigate,
-    handleCellClick,
     handleCloseActionMenu,
     initiateOperation,
     handleAddOperation
