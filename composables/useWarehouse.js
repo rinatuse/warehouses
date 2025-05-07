@@ -7,7 +7,8 @@ export function useWarehouse() {
   const operations = ref(operationsHistoryData)
   const selectedWarehouse = ref(null)
   const selectedContainer = ref(null)
-  const selectedProduct = ref(null) // Теперь работаем напрямую с товаром, а не с ячейкой
+  const selectedCell = ref(null)
+  const selectedProduct = ref(null)
   const searchQuery = ref('')
   const showActionMenu = ref(false)
   const showOperationForm = ref(false)
@@ -69,37 +70,51 @@ export function useWarehouse() {
     showOperationForm.value = true
     showActionMenu.value = false
     
-    // Инициализация формы операции с данными выбранного товара
+    // Инициализация формы операции с данными выбранного товара или ячейки
     operationForm.value = {
-      product_code: selectedProduct.value?.code || '',
-      product_name: selectedProduct.value?.name || '',
-      quantity: selectedProduct.value?.quantity || '',
-      unit: selectedProduct.value?.unit || '',
+      product_code: selectedProduct.value?.code || selectedCell.value?.product?.code || '',
+      product_name: selectedProduct.value?.name || selectedCell.value?.product?.name || '',
+      quantity: selectedProduct.value?.quantity || selectedCell.value?.product?.quantity || '',
+      unit: selectedProduct.value?.unit || selectedCell.value?.product?.unit || '',
       source: selectedWarehouse.value ? `${selectedWarehouse.value.name} / ${selectedContainer.value.name}` : '',
       destination: '',
       operation_name: type
     }
   }
 
-  // Добавление новой операции
-  function handleAddOperation() {
+  // Добавление новой операции (теперь принимает данные формы)
+  function handleAddOperation(formData) {
+    console.log('Получены данные:', formData)
+    
     // Создаем новую операцию
     const newOperation = {
       id: operations.value.length + 1,
       date_operation: new Date().toISOString(),
-      product_code: operationForm.value.product_code,
-      product_name: operationForm.value.product_name,
-      total: parseFloat(operationForm.value.quantity),
-      unit: operationForm.value.unit,
-      contractor_from: operationForm.value.source.includes('ЦМЗ') ? 'ООО "ЦМЗ"(ИНН:7807261892)' : operationForm.value.source,
+      product_code: formData.product_code,
+      product_name: formData.product_name,
+      total: parseFloat(formData.quantity),
+      unit: formData.unit,
+      cost: null,
+      contractor_from: formData.source.includes('ЦМЗ') || formData.source.includes('Основной склад') ? 
+                      'ООО "ЦМЗ"(ИНН:7807261892)' : 
+                      formData.source.includes('Магазин') || formData.source.includes('Авто') ? 
+                      formData.source : null,
       employee_from: null,
-      contractor_to: operationForm.value.destination.includes('ЦМЗ') ? 'ООО "ЦМЗ"(ИНН:7807261892)' : null,
-      employee_to: operationForm.value.destination.includes('Вячеслав') ? 'Вячеслав - фрезеровщик' : null,
-      operation_name: operationForm.value.operation_name
+      contractor_to: formData.destination.includes('ЦМЗ') || formData.destination.includes('Основной склад') ? 
+                     'ООО "ЦМЗ"(ИНН:7807261892)' : null,
+      employee_to: formData.destination.includes('Вячеслав') ? 'Вячеслав - фрезеровщик' : 
+                  formData.destination.includes('Иванов') ? 'Иванов И.И. - сварщик' :
+                  formData.destination.includes('Списание') ? null : null,
+      operation_name: formData.operation_name
     }
+    
+    console.log('Создана операция:', newOperation)
     
     // Добавляем операцию в историю
     operations.value = [newOperation, ...operations.value]
+    
+    // Обновляем состояние товаров на складе в зависимости от типа операции
+    updateWarehouseState(formData)
     
     // Закрываем форму и сбрасываем
     showOperationForm.value = false
@@ -113,13 +128,98 @@ export function useWarehouse() {
       operation_name: ''
     }
   }
+  
+  // Обновление состояния склада после операции
+  function updateWarehouseState(formData) {
+    const quantity = parseFloat(formData.quantity)
+    
+    // Находим склад и контейнер источника
+    let sourceWarehouse, sourceContainer
+    
+    if (selectedWarehouse.value && selectedContainer.value) {
+      sourceWarehouse = selectedWarehouse.value
+      sourceContainer = selectedContainer.value
+    } else if (formData.source_warehouse && formData.source_container) {
+      sourceWarehouse = warehouses.value.find(w => w.id === parseInt(formData.source_warehouse))
+      sourceContainer = sourceWarehouse?.containers.find(c => c.id === parseInt(formData.source_container))
+    }
+    
+    // Обработка в зависимости от типа операции
+    switch (formData.operation_name) {
+      case 'приход':
+        // Находим целевой склад и контейнер
+        const targetWarehouse = warehouses.value.find(w => w.id === parseInt(formData.destination_warehouse))
+        const targetContainer = targetWarehouse?.containers.find(c => c.id === parseInt(formData.destination_container))
+        
+        if (targetContainer) {
+          // Добавляем товар в products контейнера
+          const existingProduct = targetContainer.products.find(p => p.code === formData.product_code)
+          
+          if (existingProduct) {
+            existingProduct.quantity = parseFloat(existingProduct.quantity) + quantity
+          } else {
+            targetContainer.products.push({
+              code: formData.product_code,
+              name: formData.product_name,
+              quantity: quantity,
+              unit: formData.unit
+            })
+          }
+        }
+        break
+        
+      case 'списание':
+      case 'отгрузка':
+        // Уменьшаем количество товара в исходном контейнере
+        if (sourceContainer) {
+          const product = sourceContainer.products.find(p => p.code === formData.product_code)
+          
+          if (product) {
+            product.quantity = Math.max(0, parseFloat(product.quantity) - quantity)
+          }
+        }
+        break
+        
+      case 'перемещение':
+        // Находим целевой склад и контейнер
+        const destWarehouse = warehouses.value.find(w => w.id === parseInt(formData.destination_warehouse))
+        const destContainer = destWarehouse?.containers.find(c => c.id === parseInt(formData.destination_container))
+        
+        // Уменьшаем количество в исходном контейнере
+        if (sourceContainer) {
+          const sourceProduct = sourceContainer.products.find(p => p.code === formData.product_code)
+          
+          if (sourceProduct) {
+            sourceProduct.quantity = Math.max(0, parseFloat(sourceProduct.quantity) - quantity)
+          }
+        }
+        
+        // Увеличиваем количество в целевом контейнере
+        if (destContainer) {
+          const targetProduct = destContainer.products.find(p => p.code === formData.product_code)
+          
+          if (targetProduct) {
+            targetProduct.quantity = parseFloat(targetProduct.quantity) + quantity
+          } else {
+            destContainer.products.push({
+              code: formData.product_code,
+              name: formData.product_name,
+              quantity: quantity,
+              unit: formData.unit
+            })
+          }
+        }
+        break
+    }
+  }
 
   return {
     warehouses,
     operations,
     selectedWarehouse,
     selectedContainer,
-    selectedProduct, // Вместо selectedCell возвращаем selectedProduct
+    selectedCell,
+    selectedProduct,
     searchQuery,
     showActionMenu,
     showOperationForm,

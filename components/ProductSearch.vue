@@ -16,25 +16,23 @@
       />
     </div>
 
-    <template v-if="matchingCells.length > 0">
-      <p class="text-gray-600 mb-4">Найдено {{ matchingCells.length }} соответствий:</p>
+    <template v-if="matchingProducts.length > 0">
+      <p class="text-gray-600 mb-4">Найдено {{ matchingProducts.length }} соответствий:</p>
       <div class="grid grid-cols-1 gap-4">
         <div 
-          v-for="(match, index) in matchingCells" 
+          v-for="(match, index) in matchingProducts" 
           :key="index"
           class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer"
-          @click="$emit('cellSelect', match.warehouseId, match.containerId, match.cell)"
+          @click="handleProductClick(match.warehouseId, match.containerId, match.product)"
         >
           <div class="flex justify-between items-start">
             <div>
-              <h3 class="font-medium text-gray-900">{{ match.cell.product.name }}</h3>
-              <p class="text-sm text-gray-500">Артикул: {{ match.cell.product.code }}</p>
-              <p class="text-sm text-gray-500">Количество: {{ match.cell.product.quantity }} {{ match.cell.product.unit }}</p>
+              <h3 class="font-medium text-gray-900">{{ match.product.name }}</h3>
+              <p class="text-sm text-gray-500">Артикул: {{ match.product.code }}</p>
+              <p class="text-sm text-gray-500">Количество: {{ match.product.quantity }} {{ match.product.unit }}</p>
             </div>
             <div class="text-right">
               <p class="text-sm font-medium text-blue-600">{{ match.warehouseName }} / {{ match.containerName }}</p>
-              <p class="text-sm text-gray-500">Ячейка: {{ match.cell.id }}</p>
-              <p class="text-sm text-gray-500">Ряд: {{ match.cell.row }}, Полка: {{ match.cell.shelf }}</p>
             </div>
           </div>
         </div>
@@ -59,35 +57,50 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['cellSelect'])
+const emit = defineEmits(['cellSelect', 'productSelect'])
 
 const productSearchQuery = ref('')
 
-// Вычисляемое свойство для нахождения ячеек с искомым товаром
-const matchingCells = computed(() => {
+// Вычисляемое свойство для нахождения товаров по поисковому запросу
+const matchingProducts = computed(() => {
   if (!productSearchQuery.value) return []
   
   const results = []
   
   props.warehouses.forEach(warehouse => {
-    warehouse.containers.forEach(container => {
-      container.cells.forEach(cell => {
-        if (cell.product && (
-          cell.product.name.toLowerCase().includes(productSearchQuery.value.toLowerCase()) ||
-          cell.product.code.includes(productSearchQuery.value)
-        )) {
-          results.push({
-            warehouseId: warehouse.id,
-            warehouseName: warehouse.name,
-            containerId: container.id,
-            containerName: container.name,
-            cell: cell
+    if (warehouse && warehouse.containers) {
+      warehouse.containers.forEach(container => {
+        if (container && container.products && Array.isArray(container.products)) {
+          container.products.forEach(product => {
+            if (product && (
+              product.name.toLowerCase().includes(productSearchQuery.value.toLowerCase()) ||
+              product.code.includes(productSearchQuery.value)
+            )) {
+              results.push({
+                warehouseId: warehouse.id,
+                warehouseName: warehouse.name,
+                containerId: container.id,
+                containerName: container.name,
+                product: product
+              })
+            }
           })
         }
       })
-    })
+    }
   })
   
   return results
 })
+
+// Обработчик клика по товару
+function handleProductClick(warehouseId, containerId, product) {
+  console.log('Товар выбран:', product.name);
+  
+  // Отправляем событие cellSelect для обратной совместимости
+  emit('cellSelect', warehouseId, containerId, product);
+  
+  // Также отправляем новое событие productSelect 
+  emit('productSelect', warehouseId, containerId, product);
+}
 </script>
